@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
-#include <array>
 #include <thread>
 #include <mutex>
 #include <regex>
@@ -15,4 +14,4 @@
 #define YTDL_NAME "yt-dlp_linux"
 #endif
 
-#define YTDL_PATH ".\\bin\\" YTDL_NAME
+#define YTDL_PATH ".\\garrysmod\\lua\\bin\\" YTDL_NAME

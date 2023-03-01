@@ -12,86 +12,100 @@ struct Result
 std::vector<Result> results;
 std::mutex mtx;
 
-void runCmd(std::string input, int ref)
+void runCmd(std::vector<std::string> args, int ref)
 {
-    input = std::regex_replace(input, std::regex("\""), "\"\"");
-
+    // build command
     std::string cmd = "\"";
     cmd += YTDL_PATH;
-    cmd += " --dump-json --no-playlist \"";
-    cmd += input;
-    cmd += "\"\" 2>&1";
+    for (auto& arg : args) {
+        cmd += " \"";
+        cmd += std::regex_replace(arg, std::regex("\""), "\"\""); // escape double quotes
+        cmd += "\"";
+    }
+    cmd += "\" 2>&1";
 
     FILE* pipe = popen(cmd.c_str(), "r");
 
+    const std::lock_guard<std::mutex> guard(mtx);
+
     if (!pipe)
     {
-        mtx.lock();
         results.push_back({ false, "failed to open ytdl", ref});
-        mtx.unlock();
         return;
     }
 
-    std::array<char, 128> buffer;
+    char buffer[128];
     std::string output;
 
-    while (fgets(buffer.data(), sizeof(buffer), pipe) != NULL) {
-        output += buffer.data();
+    while (fgets(buffer, 128, pipe) != NULL) {
+        output += buffer;
     }
 
     bool success = pclose(pipe) == EXIT_SUCCESS;
 
-    mtx.lock();
     results.push_back({ success, output, ref });
-    mtx.unlock();
 }
 
 LUA_FUNCTION(ytdlThink)
 {
-    LUA->PushSpecial(SPECIAL_GLOB);
-    LUA->GetField(-1, "YTDL");
-    if (!LUA->IsType(-1, Type::Nil)) {
-        mtx.lock();
-        if (!results.empty()) {
-            Result res = results.front();
-            results.erase(results.begin());
-            mtx.unlock();
+    const std::lock_guard<std::mutex> guard(mtx);
 
-            bool success = res.success;
-            std::string output = res.output;
-            int ref = res.ref;
+    if (!results.empty()) {
+        Result res = results.front();
+        results.erase(results.begin());
 
-            LUA->ReferencePush(ref);
-            LUA->ReferenceFree(ref);
-            if (success)
-            {
-                LUA->PushString(output.c_str());
-                LUA->Call(1, 0);
-            }
-            else
-            {
-                LUA->PushNil();
-                LUA->PushString(output.c_str());
-                LUA->Call(2, 0);
-            }
+        bool success = res.success;
+        std::string output = res.output;
+        int ref = res.ref;
+
+        LUA->ReferencePush(ref);
+        LUA->ReferenceFree(ref);
+        if (success)
+        {
+            LUA->PushString(output.c_str());
+            LUA->Call(1, 0);
         }
         else
         {
-            mtx.unlock();
+            LUA->PushNil();
+            LUA->PushString(output.c_str());
+            LUA->Call(2, 0);
         }
     }
-    LUA->Pop(2);
 
     return 0;
 }
 
-LUA_FUNCTION(Request)
+// --playlist-items {amt} overrides total results from playlist urls and ytsearch{amt}:{search}
+
+// get all json data from request
+LUA_FUNCTION(GetJSON)
 {
     LUA->CheckType(1, Type::String);
     LUA->CheckType(2, Type::Function);
 
+    std::vector<std::string> args = { "--playlist-items", "1", "--dump-json", LUA->GetString(1)};
     LUA->Push(2);
-    std::thread t(runCmd, LUA->GetString(1), LUA->ReferenceCreate());
+    int ref = LUA->ReferenceCreate();
+
+    std::thread t(runCmd, args, ref);
+    t.detach();
+
+    return 0;
+}
+
+// get only the url from request
+// note: this may return multiple urls for both video and audio (seperated by new line)
+LUA_FUNCTION(GetURL)
+{
+    LUA->CheckType(1, Type::String);
+    LUA->CheckType(2, Type::Function);
+
+    std::vector<std::string> args = { "--playlist-items", "1", "--get-url", LUA->GetString(1) };
+    LUA->Push(2);
+    int ref = LUA->ReferenceCreate();
+
+    std::thread t(runCmd, args, ref);
     t.detach();
 
     return 0;
@@ -101,8 +115,10 @@ GMOD_MODULE_OPEN()
 {
     LUA->PushSpecial(SPECIAL_GLOB);
         LUA->CreateTable();
-            LUA->PushCFunction(Request);
-            LUA->SetField(-2, "Request");
+            LUA->PushCFunction(GetJSON);
+            LUA->SetField(-2, "GetJSON");
+            LUA->PushCFunction(GetURL);
+            LUA->SetField(-2, "GetURL");
         LUA->SetField(-2, "YTDL");
 
         LUA->GetField(-1, "hook");
@@ -114,10 +130,10 @@ GMOD_MODULE_OPEN()
         LUA->Pop();
     LUA->Pop();
 
-	return 0;
+    return 0;
 }
 
 GMOD_MODULE_CLOSE()
 {
-	return 0;
+    return 0;
 }
