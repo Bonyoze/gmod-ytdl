@@ -11,6 +11,11 @@ struct Result
 
 std::vector<Result> results;
 std::mutex mtx;
+const std::regex url_regex("(^https?://[0-9a-z\.-]+(:[1-9][0-9]*)?(/[^\s]*)*$)");
+
+bool isValidURL(std::string str) {
+    return std::regex_match(str, url_regex);
+}
 
 void runCmd(std::vector<std::string> args, int ref)
 {
@@ -26,10 +31,9 @@ void runCmd(std::vector<std::string> args, int ref)
 
     FILE* pipe = popen(cmd.c_str(), "r");
 
-    const std::lock_guard<std::mutex> guard(mtx);
-
     if (!pipe)
     {
+        const std::lock_guard<std::mutex> lg(mtx);
         results.push_back({ false, "failed to open ytdl", ref});
         return;
     }
@@ -43,13 +47,13 @@ void runCmd(std::vector<std::string> args, int ref)
 
     bool success = pclose(pipe) == EXIT_SUCCESS;
 
+    const std::lock_guard<std::mutex> lg(mtx);
     results.push_back({ success, output, ref });
 }
 
 LUA_FUNCTION(ytdlThink)
 {
-    const std::lock_guard<std::mutex> guard(mtx);
-
+    const std::lock_guard<std::mutex> lg(mtx);
     if (!results.empty()) {
         Result res = results.front();
         results.erase(results.begin());
@@ -78,13 +82,19 @@ LUA_FUNCTION(ytdlThink)
 
 // --playlist-items {amt} overrides total results from playlist urls and ytsearch{amt}:{search}
 
-// get all json data from request
+// get all json data from input
 LUA_FUNCTION(GetJSON)
 {
     LUA->CheckType(1, Type::String);
     LUA->CheckType(2, Type::Function);
 
-    std::vector<std::string> args = { "--playlist-items", "1", "--dump-json", LUA->GetString(1)};
+    std::string input = LUA->GetString(1);
+    if (!isValidURL(input)) // assume the input is a search if it's not a url
+    {
+        input = "ytsearch:" + input;
+    }
+
+    std::vector<std::string> args = { "--playlist-items", "1", "--dump-json", input };
     LUA->Push(2);
     int ref = LUA->ReferenceCreate();
 
@@ -94,14 +104,20 @@ LUA_FUNCTION(GetJSON)
     return 0;
 }
 
-// get only the url from request
+// get only the url from input
 // note: this may return multiple urls for both video and audio (seperated by new line)
 LUA_FUNCTION(GetURL)
 {
     LUA->CheckType(1, Type::String);
     LUA->CheckType(2, Type::Function);
 
-    std::vector<std::string> args = { "--playlist-items", "1", "--get-url", LUA->GetString(1) };
+    std::string input = LUA->GetString(1);
+    if (!isValidURL(input)) // assume the input is a search if it's not a url
+    {
+        input = "ytsearch:" + input;
+    }
+
+    std::vector<std::string> args = { "--playlist-items", "1", "--get-url", input };
     LUA->Push(2);
     int ref = LUA->ReferenceCreate();
 
