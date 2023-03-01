@@ -15,3 +15,14 @@
 #endif
 
 #define YTDL_PATH ".\\garrysmod\\lua\\bin\\" YTDL_NAME
+
+struct Result
+{
+    bool success;
+    std::string output;
+    int callback_ref;
+};
+
+bool isValidURL(std::string str);
+
+void runCmd(std::vector<std::string> args, int callback_ref);
