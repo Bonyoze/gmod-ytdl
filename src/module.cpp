@@ -1,5 +1,4 @@
 #include "GarrysMod/Lua/Interface.h"
-#include <cstdlib>
 #include <string>
 #include <vector>
 #include <thread>

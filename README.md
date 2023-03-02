@@ -37,8 +37,9 @@ If a url is not detected in the request, the module will assume it is a Youtube 
 
 ```lua
 require("ytdl")
-if not YTDL then return end
+```
 
+```lua
 -- returns a table containing info for the request
 -- or nil and an error message if it failed
 YTDL.GetInfo("https://www.youtube.com/watch?v=qQzdAsjWGPg", function(data, err)
