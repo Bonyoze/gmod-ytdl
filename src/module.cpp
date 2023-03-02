@@ -1,13 +1,38 @@
-#include "module.h"
+#include "GarrysMod/Lua/Interface.h"
+#include <cstdlib>
+#include <string>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <regex>
 
-using namespace GarrysMod::Lua;
+#ifdef _WIN32
+#define YTDL_PATH ".\\garrysmod\\lua\\bin\\yt-dlp.exe"
+#define ARG_ESCAPE "^$1"
+#define popen _popen
+#define pclose _pclose
+#else
+#define YTDL_PATH "./garrysmod/lua/bin/yt-dlp_linux"
+#define ARG_ESCAPE "\\$1"
+#endif
+
+struct Result
+{
+    bool success;
+    std::string output;
+    int callback_ref;
+};
 
 std::vector<Result> results;
 std::mutex mtx;
+
 const std::regex url_regex(R"(^https?://[0-9a-z\.-]+(:[1-9][0-9]*)?(/[^\s]*)*$)");
-const std::regex arg_regex("\"");
+const std::regex arg_regex(R"(([\\^"]))");
+
 int json_to_tbl_ref;
 int err_no_halt_ref;
+
+using namespace GarrysMod::Lua;
 
 bool isValidURL(std::string str) {
     return std::regex_match(str, url_regex);
@@ -16,14 +41,13 @@ bool isValidURL(std::string str) {
 void runCmd(std::vector<std::string> args, int callback_ref)
 {
     // build command
-    std::string cmd = "\"";
-    cmd += YTDL_PATH;
+    std::string cmd = YTDL_PATH;
     for (auto& arg : args) {
         cmd += " \"";
-        cmd += std::regex_replace(arg, arg_regex, "\"\""); // escape double quotes
+        cmd += std::regex_replace(arg, arg_regex, ARG_ESCAPE); // escape certain characters
         cmd += "\"";
     }
-    cmd += "\" 2>&1";
+    cmd += " 2>&1";
 
     FILE* pipe = popen(cmd.c_str(), "r");
 
