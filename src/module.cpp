@@ -6,14 +6,18 @@
 #include <mutex>
 #include <regex>
 
+#define URL_REGEX R"(^https?://[0-9a-z\.-]+(:[1-9][0-9]*)?(/[^\s]*)*$)"
+
 #ifdef _WIN32
 #define YTDL_PATH ".\\garrysmod\\lua\\bin\\yt-dlp.exe"
-#define ARG_ESCAPE "^$1"
+#define ARG_REGEX R"(")"
+#define ARG_ESCAPE R"("")"
 #define popen _popen
 #define pclose _pclose
 #else
 #define YTDL_PATH "./garrysmod/lua/bin/yt-dlp_linux"
-#define ARG_ESCAPE "\\$1"
+#define ARG_REGEX R"(([\\"]))"
+#define ARG_ESCAPE R"(\$1)"
 #endif
 
 struct Result
@@ -26,8 +30,8 @@ struct Result
 std::vector<Result> results;
 std::mutex mtx;
 
-const std::regex url_regex(R"(^https?://[0-9a-z\.-]+(:[1-9][0-9]*)?(/[^\s]*)*$)");
-const std::regex arg_regex(R"(([\\^"]))");
+const std::regex url_regex(URL_REGEX);
+const std::regex arg_regex(ARG_REGEX);
 
 int json_to_tbl_ref;
 int err_no_halt_ref;
