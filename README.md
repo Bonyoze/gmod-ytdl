@@ -1,6 +1,6 @@
 # gmod-ytdl
 
-A server-side module that exposes yt-dlp to GMod.
+A module that exposes yt-dlp to GMod.
 
 ### Requirements
 
@@ -12,20 +12,18 @@ The latest release for yt-dlp can be found [here](https://github.com/yt-dlp/yt-d
 
 ---
 
-##### `table`, `string` YTDL.GetInfo( `string` request )
+##### YTDL.GetInfo( `string` request, `function` callback )
 
 ###### Description
 
-Returns info from the request.
+Retrieves info from the request.
 
 ###### Arguments
 
 1. `string` request - The url or Youtube search query to get info on
-
-###### Returns
-
-1. `table` - Info from the request (`nil` if the function failed)
-2. `string` - Error message if the function failed (`nil` if the function was successful)
+2. `function` callback - The function to call when finished. Arguments are
+    - `table` data - Info from the request (`nil` if the function failed)
+    - `string` error - The error message (nil if the request was successful)
 
 ---
 
